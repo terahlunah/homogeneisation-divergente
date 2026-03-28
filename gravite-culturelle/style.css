@@ -16,3 +16,16 @@ canvas {
   width: 100%;
   height: 100%;
 }
+
+#github-link {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  color: rgba(255, 255, 255, 0.25);
+  transition: color 0.2s;
+  z-index: 10;
+}
+
+#github-link:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
