@@ -33,7 +33,7 @@ Runs every ~30 frames (~0.5s at 60fps), decoupled from the render loop.
   metrics: {
     globalSpread,         // avg distance of all particles to global centroid
     intraCluster: [...]   // per cluster: avg distance to cluster centroid
-    interCluster: [...]   // distances between neighboring cluster centroids
+    interCluster: [...]   // gap between neighboring cluster boundaries (edge-to-edge)
   },
   events: [
     { type: 'merge' | 'split', position: {x,y}, label: string }
@@ -70,12 +70,15 @@ Circles (not convex hulls) — cheaper to compute, less noisy, cleaner visual.
 
 Small label near each cluster centroid: "H+" with a normalized value (0–1, where 1 = perfectly tight). Font size scales with cluster particle count so larger clusters are more prominent. Color matches the cluster's average color.
 
-### Inter-cluster distance (H-)
+### Inter-cluster gap (H-)
 
-Thin lines connecting centroids of neighboring clusters within the same super-cluster.
+Thin lines connecting the nearest edges of neighboring clusters within the same super-cluster. The line spans the *gap* between cluster boundaries, not between centroids — this is the frontier.
 
-- Line opacity reflects distance: closer = more opaque (converging), farther = more transparent (diverging).
-- A small "H-" label at the midpoint of each line when clusters are actively diverging (distance increasing between consecutive recomputations).
+- Gap = distance between centroids minus the two cluster radii. When positive, there's empty space (a frontier). When zero or negative, clusters are touching/merging.
+- Line opacity reflects gap width: wider gap = more opaque (diverging frontier), narrower = more transparent (converging toward merge).
+- A small "H-" label at the midpoint when the gap is actively widening (increasing between consecutive recomputations). This is the visual signature of homogénéisation divergente — clusters tightening internally while the void between them grows.
+
+Note: centroids always approach each other (gravity), but the gap can still widen because clusters are shrinking faster than centroids are converging. This is exactly the article's key insight.
 
 ### Global spread
 
