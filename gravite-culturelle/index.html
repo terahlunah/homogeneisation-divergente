@@ -23,6 +23,7 @@
   <script type="module">
     import { createSeed, step } from './simulation.js';
     import { render } from './renderer.js';
+    import { startRecording, stopRecording, isRecording } from './export.js';
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -46,6 +47,22 @@
 
     document.getElementById('btn-reset').addEventListener('click', () => {
       particles = createSeed();
+    });
+
+    const btnExport = document.getElementById('btn-export');
+
+    btnExport.addEventListener('click', () => {
+      if (isRecording()) {
+        stopRecording();
+        btnExport.textContent = 'Export';
+        btnExport.classList.remove('recording');
+      } else {
+        startRecording(canvas, (seconds) => {
+          btnExport.textContent = `Rec ${seconds}s`;
+        });
+        btnExport.textContent = 'Rec 0s';
+        btnExport.classList.add('recording');
+      }
     });
 
     function animate() {
