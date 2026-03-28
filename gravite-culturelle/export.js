@@ -83,21 +83,26 @@ export async function startRecording(canvas, renderFrame, onTick = null) {
     }
 
     async function finalize() {
+      if (cancelled) {
+        encoder.close();
+        recording = false;
+        resolve();
+        return;
+      }
+
       await encoder.flush();
       encoder.close();
       muxer.finalize();
 
-      if (!cancelled) {
-        const blob = new Blob([target.buffer], { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'homogeneisation-divergente.webm';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
+      const blob = new Blob([target.buffer], { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'homogeneisation-divergente.webm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       recording = false;
       resolve();
