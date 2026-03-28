@@ -8,7 +8,7 @@ Particles in a 2D cultural space attract each other via gravity, forming hierarc
 
 ## Live demo
 
-**[https://YOUR_USERNAME.github.io/homogeneisation-divergente/]()**
+**[https://terahlunah.github.io/homogeneisation-divergente/](https://terahlunah.github.io/homogeneisation-divergente/)**
 
 ## How it works
 
