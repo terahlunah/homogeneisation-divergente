@@ -10,7 +10,7 @@
   <canvas id="canvas"></canvas>
 
   <script type="module">
-    import { createSeed } from './simulation.js';
+    import { createSeed, step } from './simulation.js';
     import { render } from './renderer.js';
 
     const canvas = document.getElementById('canvas');
@@ -24,8 +24,24 @@
     window.addEventListener('resize', resize);
     resize();
 
-    const particles = createSeed();
-    render(ctx, particles, canvas.width, canvas.height);
+    // Physics constants (initial values - will be tuned in Task 9)
+    const G = 0.00005;
+    const EPSILON = 0.05;
+    const DAMPING = 0.95;
+    const SUBSTEPS = 3;
+    const DT = (1 / 60) / SUBSTEPS;
+
+    let particles = createSeed();
+
+    function animate() {
+      for (let i = 0; i < SUBSTEPS; i++) {
+        step(particles, DT, G, EPSILON, DAMPING);
+      }
+      render(ctx, particles, canvas.width, canvas.height);
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
   </script>
 </body>
 </html>
