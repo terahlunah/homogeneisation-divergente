@@ -56,7 +56,7 @@ export function render(ctx, particles, width, height) {
   const scale = Math.min(width, height) * 0.45; // 0.45 leaves margin
   const cx = width / 2;
   const cy = height / 2;
-  const radius = Math.max(2, Math.min(width, height) * 0.004); // ~3px at 800px
+  const radius = Math.max(1.5, Math.min(width, height) * 0.002); // ~1.5px at 800px
 
   for (const p of particles) {
     ctx.fillStyle = positionToColor(p.x, p.y);
@@ -64,4 +64,14 @@ export function render(ctx, particles, width, height) {
     ctx.arc(cx + p.x * scale, cy - p.y * scale, radius, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  // Title overlay (rendered on canvas so it's included in exports)
+  const pad = Math.min(width, height) * 0.03;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.font = `600 ${Math.min(width, height) * 0.022}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText('Homogénéisation divergente', pad, pad + Math.min(width, height) * 0.022);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.font = `italic ${Math.min(width, height) * 0.014}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText('Simulation gravitationnelle de la convergence culturelle', pad, pad + Math.min(width, height) * 0.046);
 }

@@ -9,18 +9,9 @@
 <body>
   <canvas id="canvas"></canvas>
 
-  <div id="overlay">
-    <div id="title-block">
-      <h1>Homogénéisation divergente</h1>
-      <p>Simulation gravitationnelle de la convergence culturelle</p>
-    </div>
-    <div id="controls">
-      <button id="btn-reset" title="Nouvelle simulation">Reset</button>
-      <button id="btn-export" title="Enregistrer en WebM">Export</button>
-    </div>
-  </div>
 
   <script type="module">
+    import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.20/+esm';
     import { createSeed, step } from './simulation.js';
     import { render } from './renderer.js';
     import { startRecording, stopRecording, isRecording } from './export.js';
@@ -36,40 +27,87 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // Physics constants (initial values - will be tuned in Task 9)
-    const G = 0.00005;
-    const EPSILON = 0.05;
-    const DAMPING = 0.95;
+    // Internal constants (not exposed)
+    const G = 0.00003;
+    const EPSILON = 0.04;
+    const MIN_DIST = 0.015;
     const SUBSTEPS = 3;
-    const DT = (1 / 60) / SUBSTEPS;
+    const BASE_DT = (1 / 60) / SUBSTEPS;
 
-    let particles = createSeed();
+    // Exposed settings
+    const settings = {
+      speed: 5,
+      falloff: 1.5,
+      damping: 0.95,
+      particles: 2000,
+      clusters: 10,
+      reset() { doReseed(); },
+      export() { toggleExport(); },
+    };
 
-    document.getElementById('btn-reset').addEventListener('click', () => {
-      particles = createSeed();
-    });
+    let currentSeed = Math.floor(Math.random() * 0x7FFFFFFF);
+    let particles = createSeed(currentSeed, settings.particles, settings.clusters);
 
-    const btnExport = document.getElementById('btn-export');
+    function doReseed() {
+      currentSeed = Math.floor(Math.random() * 0x7FFFFFFF);
+      particles = createSeed(currentSeed, settings.particles, settings.clusters);
+    }
 
-    btnExport.addEventListener('click', () => {
-      if (isRecording()) {
-        stopRecording();
-        btnExport.textContent = 'Export';
-        btnExport.classList.remove('recording');
-      } else {
-        startRecording(canvas, (seconds) => {
-          btnExport.textContent = `Rec ${seconds}s`;
-        });
-        btnExport.textContent = 'Rec 0s';
-        btnExport.classList.add('recording');
-      }
-    });
+    // --- lil-gui ---
+    const gui = new GUI({ title: 'Settings' });
 
-    function animate() {
+    gui.add(settings, 'speed', 0.01, 20, 0.01).name('Speed');
+    gui.add(settings, 'falloff', 0.5, 2.0, 0.05).name('Falloff');
+    gui.add(settings, 'damping', 0.8, 0.999, 0.005).name('Damping');
+
+    const seedFolder = gui.addFolder('Seeding');
+    seedFolder.add(settings, 'particles', 200, 5000, 100).name('Particles').onFinishChange(doReseed);
+    seedFolder.add(settings, 'clusters', 2, 12, 1).name('Clusters').onFinishChange(doReseed);
+
+    gui.add(settings, 'reset').name('Reset');
+    gui.add(settings, 'export').name('Export');
+
+    // --- Shared step+render ---
+    function stepAndRender() {
+      const dt = BASE_DT * settings.speed;
+      const params = {
+        G,
+        epsilon: EPSILON,
+        falloff: settings.falloff,
+        minDist: MIN_DIST,
+        damping: settings.damping,
+      };
       for (let i = 0; i < SUBSTEPS; i++) {
-        step(particles, DT, G, EPSILON, DAMPING);
+        step(particles, dt, params);
       }
       render(ctx, particles, canvas.width, canvas.height);
+    }
+
+    // --- Export toggle ---
+    const exportCtrl = gui.controllers.find(c => c.property === 'export');
+
+    async function toggleExport() {
+      if (isRecording()) {
+        stopRecording();
+      } else {
+        doReseed();
+        exportCtrl.name('Rec 0s');
+        paused = true; // pause live loop, recording drives frames
+        await startRecording(canvas, stepAndRender, (seconds) => {
+          exportCtrl.name(`Rec ${seconds}s`);
+        });
+        exportCtrl.name('Export');
+        paused = false; // resume live loop
+        requestAnimationFrame(animate);
+      }
+    }
+
+    // --- Animation loop ---
+    let paused = false;
+
+    function animate() {
+      if (paused) return;
+      stepAndRender();
       requestAnimationFrame(animate);
     }
 
