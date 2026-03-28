@@ -9,12 +9,10 @@
 <body>
   <canvas id="canvas"></canvas>
 
-
   <script type="module">
     import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.20/+esm';
     import { createSeed, step } from './simulation.js';
-    import { render, renderOverlays, renderTitle } from './renderer.js';
-    import { detectClusters, updateClusterPositions, updateGapTracking, resetClusterState } from './clusters.js';
+    import { render, renderTitle } from './renderer.js';
     import { startRecording, stopRecording, isRecording } from './export.js';
 
     const canvas = document.getElementById('canvas');
@@ -31,41 +29,39 @@
     // Internal constants (not exposed)
     const G = 0.00003;
     const EPSILON = 0.04;
-    const MIN_DIST = 0.015;
+    const REPULSION = 0.001;
+    const REP_RADIUS = 0.06;
     const SUBSTEPS = 3;
     const BASE_DT = (1 / 60) / SUBSTEPS;
 
     // Exposed settings
     const settings = {
-      speed: 5,
-      falloff: 1.5,
+      speed: 2.5,
+      falloff: 1.3,
       damping: 0.95,
       particles: 1000,
       clusters: 10,
-      didactic: false,
-      clusterEps: 0.06,
-      superClusterEps: 0.25,
       start() { toggleRunning(); },
-      reset() { doReseed(); },
+      reset() { doReset(); },
+      reseed() { doReseed(); },
       export() { toggleExport(); },
+      cancelExport() { doCancelExport(); },
     };
 
     // --- State ---
     let currentSeed, particles;
     let running = false;
-    let frameCount = 0;
-    let clusterData = null;
-    const CLUSTER_INTERVAL = 30;
+
+    function doReset() {
+      particles = createSeed(currentSeed, settings.particles, settings.clusters);
+      running = false;
+      if (startCtrl) startCtrl.name('Start');
+      renderFrame();
+    }
 
     function doReseed() {
       currentSeed = Math.floor(Math.random() * 0x7FFFFFFF);
-      particles = createSeed(currentSeed, settings.particles, settings.clusters);
-      running = false;
-      frameCount = 0;
-      clusterData = null;
-      resetClusterState();
-      if (startCtrl) startCtrl.name('Start');
-      renderFrame();
+      doReset();
     }
 
     function toggleRunning() {
@@ -85,61 +81,58 @@
     seedFolder.add(settings, 'particles', 200, 5000, 100).name('Particles').onFinishChange(doReseed);
     seedFolder.add(settings, 'clusters', 2, 12, 1).name('Clusters').onFinishChange(doReseed);
 
-    const didacticFolder = gui.addFolder('Didactic');
-    didacticFolder.add(settings, 'didactic').name('Enabled');
-    didacticFolder.add(settings, 'clusterEps', 0.01, 0.2, 0.005).name('Cluster ε');
-    didacticFolder.add(settings, 'superClusterEps', 0.05, 0.5, 0.01).name('Super-cluster ε');
-
     const startCtrl = gui.add(settings, 'start').name('Start');
     gui.add(settings, 'reset').name('Reset');
+    gui.add(settings, 'reseed').name('Reseed');
     const exportCtrl = gui.add(settings, 'export').name('Export');
+    const cancelCtrl = gui.add(settings, 'cancelExport').name('Cancel recording');
+    cancelCtrl.hide();
 
     // --- Render frame ---
     function renderFrame() {
       const dt = BASE_DT * settings.speed;
-      const params = { G, epsilon: EPSILON, falloff: settings.falloff, minDist: MIN_DIST, damping: settings.damping };
+      const params = { G, epsilon: EPSILON, falloff: settings.falloff, repulsion: REPULSION, repRadius: REP_RADIUS, damping: settings.damping };
 
       if (running) {
         for (let i = 0; i < SUBSTEPS; i++) {
           step(particles, dt, params);
         }
-        frameCount++;
       }
 
       render(ctx, particles, canvas.width, canvas.height);
-
-      if (settings.didactic) {
-        if (frameCount % CLUSTER_INTERVAL === 0 || !clusterData) {
-          clusterData = detectClusters(particles, settings.clusterEps, settings.superClusterEps, frameCount);
-          updateGapTracking(clusterData.metrics.interCluster);
-        } else {
-          updateClusterPositions(particles, clusterData);
-        }
-        renderOverlays(ctx, clusterData, canvas.width, canvas.height, frameCount);
-      }
-
       renderTitle(ctx, canvas.width, canvas.height);
     }
 
     // --- Export toggle ---
     let exportPaused = false;
 
+    let cancelExport = false;
+
     async function toggleExport() {
       if (isRecording()) {
         stopRecording();
-      } else {
-        doReseed();
-        running = true;
-        exportCtrl.name('Rec 0s');
-        exportPaused = true;
-        await startRecording(canvas, renderFrame, (seconds) => {
-          exportCtrl.name(`Rec ${seconds}s`);
-        });
-        exportCtrl.name('Export');
-        exportPaused = false;
-        running = false;
-        startCtrl.name('Start');
-        requestAnimationFrame(animate);
+        return;
+      }
+      const wasRunning = running;
+      running = true;
+      exportCtrl.name('Rec 0s');
+      cancelCtrl.show();
+      exportPaused = true;
+      cancelExport = false;
+      await startRecording(canvas, renderFrame, (seconds) => {
+        exportCtrl.name(`Rec ${seconds}s`);
+      });
+      exportCtrl.name('Export');
+      cancelCtrl.hide();
+      exportPaused = false;
+      running = wasRunning;
+      startCtrl.name(running ? 'Pause' : 'Start');
+      if (running) requestAnimationFrame(animate);
+    }
+
+    function doCancelExport() {
+      if (isRecording()) {
+        stopRecording(true); // true = cancel, skip download
       }
     }
 

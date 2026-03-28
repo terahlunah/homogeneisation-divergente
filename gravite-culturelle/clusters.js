@@ -138,25 +138,31 @@ export function detectClusters(particles, eps1, eps2, frameCount) {
   }
   globalSpread /= n;
 
-  // Inter-cluster gaps: only for cluster pairs within the same super-cluster
+  // Inter-cluster gaps: for each cluster, only connect to its nearest neighbor
+  // within the same super-cluster. This avoids O(K²) lines.
   const interCluster = [];
+  const connected = new Set(); // track pairs to avoid duplicates
   for (const sc of superClusters) {
-    const ids = sc.clusterIds;
-    for (let a = 0; a < ids.length; a++) {
-      for (let b = a + 1; b < ids.length; b++) {
-        const ca = clusters.find(c => c.id === ids[a]);
-        const cb = clusters.find(c => c.id === ids[b]);
-        if (!ca || !cb) continue;
+    const scClusters = sc.clusterIds.map(id => clusters.find(c => c.id === id)).filter(Boolean);
+    for (const ca of scClusters) {
+      let nearest = null, nearestDist = Infinity;
+      for (const cb of scClusters) {
+        if (ca === cb) continue;
         const dx = cb.centroid.x - ca.centroid.x;
         const dy = cb.centroid.y - ca.centroid.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const gap = dist - ca.radius - cb.radius;
-        const midpoint = {
-          x: (ca.centroid.x + cb.centroid.x) / 2,
-          y: (ca.centroid.y + cb.centroid.y) / 2,
-        };
-        interCluster.push({ clusterA: ids[a], clusterB: ids[b], gap, midpoint, widening: false });
+        if (dist < nearestDist) { nearestDist = dist; nearest = cb; }
       }
+      if (!nearest) continue;
+      const key = Math.min(ca.id, nearest.id) + '-' + Math.max(ca.id, nearest.id);
+      if (connected.has(key)) continue;
+      connected.add(key);
+      const gap = nearestDist - ca.radius - nearest.radius;
+      const midpoint = {
+        x: (ca.centroid.x + nearest.centroid.x) / 2,
+        y: (ca.centroid.y + nearest.centroid.y) / 2,
+      };
+      interCluster.push({ clusterA: ca.id, clusterB: nearest.id, gap, midpoint, widening: false });
     }
   }
 

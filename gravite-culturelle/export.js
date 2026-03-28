@@ -1,5 +1,6 @@
 let recording = false;
 let stopRequested = false;
+let cancelled = false;
 
 /**
  * Record the simulation frame-by-frame with perfect timing.
@@ -18,6 +19,7 @@ export async function startRecording(canvas, renderFrame, onTick = null) {
 
   recording = true;
   stopRequested = false;
+  cancelled = false;
 
   const width = canvas.width;
   const height = canvas.height;
@@ -85,15 +87,17 @@ export async function startRecording(canvas, renderFrame, onTick = null) {
       encoder.close();
       muxer.finalize();
 
-      const blob = new Blob([target.buffer], { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'homogeneisation-divergente.webm';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (!cancelled) {
+        const blob = new Blob([target.buffer], { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'homogeneisation-divergente.webm';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
 
       recording = false;
       resolve();
@@ -106,7 +110,8 @@ export async function startRecording(canvas, renderFrame, onTick = null) {
 /**
  * Stop recording. Triggers finalization and download.
  */
-export function stopRecording() {
+export function stopRecording(cancel = false) {
+  cancelled = cancel;
   stopRequested = true;
 }
 

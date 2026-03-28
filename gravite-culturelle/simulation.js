@@ -59,7 +59,7 @@ export function createSeed(seed, count = 2000, numSeeds = 6) {
   const angleOffset = rSeeds.random() * Math.PI * 2;
   for (let i = 0; i < numSeeds; i++) {
     const angle = angleOffset + (i / numSeeds) * Math.PI * 2 + rSeeds.gaussianRandom(0, 0.3);
-    const radius = 0.7 + rSeeds.gaussianRandom(0, 0.15);
+    const radius = 1.0 + rSeeds.gaussianRandom(0, 0.15);
     seeds.push({
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
@@ -94,6 +94,30 @@ export function createSeed(seed, count = 2000, numSeeds = 6) {
   cy /= particles.length;
   for (const p of particles) { p.x -= cx; p.y -= cy; }
 
+  // Relaxation: push apart any particles closer than minSpacing
+  // Runs a few passes so the simulation starts without a repulsion burst
+  const minSpacing = 0.06; // match REP_RADIUS
+  const minSpacing2 = minSpacing * minSpacing;
+  for (let pass = 0; pass < 10; pass++) {
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[j].x - particles[i].x;
+        const dy = particles[j].y - particles[i].y;
+        const r2 = dx * dx + dy * dy;
+        if (r2 < minSpacing2 && r2 > 0) {
+          const r = Math.sqrt(r2);
+          const push = (minSpacing - r) * 0.5;
+          const nx = dx / r;
+          const ny = dy / r;
+          particles[i].x -= nx * push;
+          particles[i].y -= ny * push;
+          particles[j].x += nx * push;
+          particles[j].y += ny * push;
+        }
+      }
+    }
+  }
+
   return particles;
 }
 
@@ -116,14 +140,14 @@ export function createSeed(seed, count = 2000, numSeeds = 6) {
  * @param {object} params - { G, epsilon, falloff, minDist, damping }
  */
 export function step(particles, dt, params) {
-  const { G, epsilon, falloff, minDist, damping } = params;
+  const { G, epsilon, falloff, repulsion, repRadius, damping } = params;
   const n = particles.length;
   const ax = new Float64Array(n);
   const ay = new Float64Array(n);
   const eps2 = epsilon * epsilon;
-  const minDist2 = minDist * minDist;
+  const repR2 = repRadius * repRadius;
 
-  // Accumulate gravitational accelerations (Newton's 3rd law: each pair once)
+  // Accumulate forces: gravity (attract) + repulsion (short-range repel)
   for (let i = 0; i < n; i++) {
     const pi = particles[i];
     for (let j = i + 1; j < n; j++) {
@@ -131,8 +155,26 @@ export function step(particles, dt, params) {
       const dx = pj.x - pi.x;
       const dy = pj.y - pi.y;
       const r2 = dx * dx + dy * dy;
+
+      // Gravity: attractive, tunable falloff
       const r2e = r2 + eps2;
-      const f = G / Math.pow(r2e, falloff);
+      let f = G / Math.pow(r2e, falloff);
+
+      // Repulsion: strong short-range push, applied as direct acceleration along dx,dy
+      // NOT divided by r — so it stacks additively with each neighbor, creating pressure
+      if (r2 < repR2 && r2 > 0) {
+        const r = Math.sqrt(r2);
+        const t = 1 - r / repRadius; // 1 at center, 0 at boundary
+        const repF = repulsion * t * t * t * t / (r * r); // steep 1/r² core + quartic envelope
+        // Apply as direct push (not through f*dx which scales with distance)
+        const nx = dx / r;
+        const ny = dy / r;
+        ax[i] -= repF * nx;
+        ay[i] -= repF * ny;
+        ax[j] += repF * nx;
+        ay[j] += repF * ny;
+      }
+
       const fx = f * dx;
       const fy = f * dy;
       ax[i] += fx;
@@ -142,36 +184,27 @@ export function step(particles, dt, params) {
     }
   }
 
-  // Frame-rate independent damping: effective damping for this dt
+  // Frame-rate independent damping
   const d = Math.pow(damping, dt * 60);
+
+  // Velocity cap to prevent explosions from close encounters
+  const maxV = 0.5;
 
   // Update velocities and positions
   for (let i = 0; i < n; i++) {
     const p = particles[i];
     p.vx = p.vx * d + ax[i] * dt;
     p.vy = p.vy * d + ay[i] * dt;
+
+    // Clamp velocity for stability
+    const v2 = p.vx * p.vx + p.vy * p.vy;
+    if (v2 > maxV * maxV) {
+      const s = maxV / Math.sqrt(v2);
+      p.vx *= s;
+      p.vy *= s;
+    }
+
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-  }
-
-  // Hard minimum distance constraint: push overlapping particles apart
-  for (let i = 0; i < n; i++) {
-    const pi = particles[i];
-    for (let j = i + 1; j < n; j++) {
-      const pj = particles[j];
-      const dx = pj.x - pi.x;
-      const dy = pj.y - pi.y;
-      const r2 = dx * dx + dy * dy;
-      if (r2 < minDist2 && r2 > 0) {
-        const r = Math.sqrt(r2);
-        const overlap = (minDist - r) * 0.5;
-        const nx = dx / r;
-        const ny = dy / r;
-        pi.x -= nx * overlap;
-        pi.y -= ny * overlap;
-        pj.x += nx * overlap;
-        pj.y += ny * overlap;
-      }
-    }
   }
 }
