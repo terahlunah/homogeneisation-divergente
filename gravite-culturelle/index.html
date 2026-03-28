@@ -10,6 +10,9 @@
   <canvas id="canvas"></canvas>
 
   <script type="module">
+    import { createSeed } from './simulation.js';
+    import { render } from './renderer.js';
+
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -21,8 +24,8 @@
     window.addEventListener('resize', resize);
     resize();
 
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const particles = createSeed();
+    render(ctx, particles, canvas.width, canvas.height);
   </script>
 </body>
 </html>

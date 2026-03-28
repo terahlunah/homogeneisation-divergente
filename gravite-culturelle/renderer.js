@@ -44,3 +44,24 @@ export function positionToColor(x, y) {
 
   return `rgb(${r},${g},${bl})`;
 }
+
+/**
+ * Render all particles on the canvas.
+ * Maps cultural space [-1,1]^2 to canvas coordinates.
+ */
+export function render(ctx, particles, width, height) {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, width, height);
+
+  const scale = Math.min(width, height) * 0.45; // 0.45 leaves margin
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = Math.max(2, Math.min(width, height) * 0.004); // ~3px at 800px
+
+  for (const p of particles) {
+    ctx.fillStyle = positionToColor(p.x, p.y);
+    ctx.beginPath();
+    ctx.arc(cx + p.x * scale, cy - p.y * scale, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
