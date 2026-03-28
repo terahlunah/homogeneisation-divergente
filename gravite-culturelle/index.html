@@ -9,6 +9,17 @@
 <body>
   <canvas id="canvas"></canvas>
 
+  <div id="overlay">
+    <div id="title-block">
+      <h1>Homogénéisation divergente</h1>
+      <p>Simulation gravitationnelle de la convergence culturelle</p>
+    </div>
+    <div id="controls">
+      <button id="btn-reset" title="Nouvelle simulation">Reset</button>
+      <button id="btn-export" title="Enregistrer en WebM">Export</button>
+    </div>
+  </div>
+
   <script type="module">
     import { createSeed, step } from './simulation.js';
     import { render } from './renderer.js';
@@ -32,6 +43,10 @@
     const DT = (1 / 60) / SUBSTEPS;
 
     let particles = createSeed();
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      particles = createSeed();
+    });
 
     function animate() {
       for (let i = 0; i < SUBSTEPS; i++) {
