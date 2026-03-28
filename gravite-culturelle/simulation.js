@@ -56,3 +56,54 @@ export function createSeed() {
 
   return particles;
 }
+
+/**
+ * Advance the simulation by one timestep.
+ *
+ * Uses Plummer-softened gravity: F = G * r_vec / (r^2 + eps^2)^(3/2)
+ * Newton's third law optimization: each pair computed once.
+ * Second-order dynamics with exponential damping for frame-rate independence.
+ *
+ * @param {Array} particles - array of {x, y, vx, vy}
+ * @param {number} dt - timestep in seconds
+ * @param {number} G - gravitational constant
+ * @param {number} epsilon - softening length
+ * @param {number} damping - velocity retention per frame at 60fps (e.g. 0.95)
+ */
+export function step(particles, dt, G, epsilon, damping) {
+  const n = particles.length;
+  const ax = new Float64Array(n);
+  const ay = new Float64Array(n);
+  const eps2 = epsilon * epsilon;
+
+  // Accumulate gravitational accelerations (Newton's 3rd law: each pair once)
+  for (let i = 0; i < n; i++) {
+    const pi = particles[i];
+    for (let j = i + 1; j < n; j++) {
+      const pj = particles[j];
+      const dx = pj.x - pi.x;
+      const dy = pj.y - pi.y;
+      const r2 = dx * dx + dy * dy;
+      const r2e = r2 + eps2;
+      const inv = G / (r2e * Math.sqrt(r2e)); // G / (r^2 + eps^2)^(3/2)
+      const fx = inv * dx;
+      const fy = inv * dy;
+      ax[i] += fx;
+      ay[i] += fy;
+      ax[j] -= fx;
+      ay[j] -= fy;
+    }
+  }
+
+  // Frame-rate independent damping: effective damping for this dt
+  const d = Math.pow(damping, dt * 60);
+
+  // Update velocities and positions
+  for (let i = 0; i < n; i++) {
+    const p = particles[i];
+    p.vx = p.vx * d + ax[i] * dt;
+    p.vy = p.vy * d + ay[i] * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+  }
+}
